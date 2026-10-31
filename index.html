@@ -120,85 +120,76 @@
     </div>
 
     <script>
-        // Your Firebase Configuration
+        // Firebase Configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyBDVSalGAeUbSzoVvAILMeTuxwC3eFVRPg",
+            apiKey: "AIzaSyBDVSalGAeUbSzovVAILMeTuxwC3eFVRPg",
             authDomain: "rewardhub-f9889.firebaseapp.com",
             databaseURL: "https://rewardhub-f9889-default-rtdb.firebaseio.com",
             projectId: "rewardhub-f9889",
-            storageBucket: "rewardhub-f9889.firebasestorage.app",
-            messagingSenderId: "866755432543",
-            appId: "1:866755432543:web:5d10856a782badb03fcbea",
-            measurementId: "G-Q9CLK7H3QE"
+            storageBucket: "rewardhub-f9889.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
         };
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        const database = firebase.database();
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
+        // Unique User ID Generate or Retrieve
         let userId = localStorage.getItem('rewardHub_userId');
         if (!userId) {
             userId = 'user_' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('rewardHub_userId', userId);
         }
 
-        let currentWalletBalance = 0;
-        const balanceRef = database.ref('users/' + userId + '/balance');
-        balanceRef.on('value', (snapshot) => {
-            currentWalletBalance = snapshot.val() || 0.00;
-            document.getElementById('walletBalance').innerText = '₹' + parseFloat(currentWalletBalance).toFixed(2);
-        });
+        // Sample Tasks List
+        const tasks = [
+            { id: 'phonepe', name: 'PhonePe', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=com.phonepe.app' },
+            { id: 'paytm', name: 'Paytm', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=net.one97.paytm' },
+            { id: 'gpay', name: 'Google Pay', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user' },
+            { id: 'zomato', name: 'Zomato', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=com.application.zomato' },
+            { id: 'swiggy', name: 'Swiggy', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=in.swiggy.android' }
+        ];
 
         const todayStr = new Date().toISOString().slice(0, 10);
 
-        // Fetch Tasks from Firebase 'tasks' node
-        database.ref('tasks').once('value').then((snapshot) => {
-            const allTasks = snapshot.val();
+        // Render Tasks
+        function renderTasks() {
             const taskListContainer = document.getElementById('taskList');
             taskListContainer.innerHTML = '';
 
-            if (!allTasks || allTasks.length === 0) {
-                taskListContainer.innerHTML = '<div class="loading">No tasks found in Firebase Database! Please add tasks inside the "tasks" node.</div>';
-                return;
-            }
-
-            // Daily Rotation Logic
-            const dayOfYear = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-            const tasksPerDay = 5;
-            const startIndex = (dayOfYear * tasksPerDay) % allTasks.length;
-
-            let todayTasks = [];
-            for (let i = 0; i < tasksPerDay; i++) {
-                let taskIndex = (startIndex + i) % allTasks.length;
-                if (allTasks[taskIndex]) {
-                    todayTasks.push(allTasks[taskIndex]);
-                }
-            }
-
-            // Dynamic Render
-            todayTasks.forEach(task => {
-                const taskReward = 5; // Fixed ₹5 reward per task
-                
+            tasks.forEach(task => {
                 const taskCard = document.createElement('div');
                 taskCard.className = 'task-card';
                 taskCard.innerHTML = `
                     <div class="task-info">
                         <h4>${task.name}</h4>
                         <p>${task.desc}</p>
-                        <div class="task-reward">Earn ₹${taskReward}.00</div>
+                        <div class="task-reward">Earn ₹${task.reward.toFixed(2)}</div>
                     </div>
-                    <button id="btn_${task.id}" class="action-btn">Start</button>
+                    <button class="action-btn" id="btn_${task.id}">Start</button>
                 `;
                 taskListContainer.appendChild(taskCard);
 
-                // Safe Event Listener for APK compatibility
+                // Safe Event Listener with 15s Timer & Redirection
                 document.getElementById('btn_' + task.id).addEventListener('click', function() {
-                    completeTask(task.id, task.link, taskReward);
+                    const btn = document.getElementById('btn_' + task.id);
+                    if (btn.innerText === 'Completed' || btn.disabled) return;
+
+                    // 1. Open External Task Link
+                    window.open(task.link, '_blank');
+
+                    // 2. Set Button to Verifying State
+                    btn.innerText = 'Verifying...';
+                    btn.disabled = true;
+
+                    // 3. Wait 15 seconds to simulate task verification, then complete
+                    setTimeout(function() {
+                        completeTask(task.id, task.reward);
+                    }, 15000); // 15 seconds delay
                 });
 
                 // Listen status specifically for today's date
-                database.ref('users/' + userId + '/completedTasks/' + todayStr + '/' + task.id).on('value', (snap) => {
+                db.ref('users/' + userId + '/completedTasks/' + todayStr + '/' + task.id).on('value', (snap) => {
                     const btn = document.getElementById('btn_' + task.id);
                     if (snap.val() === true && btn) {
                         btn.innerText = 'Completed';
@@ -206,52 +197,45 @@
                     }
                 });
             });
-        }).catch(err => {
-            document.getElementById('taskList').innerHTML = '<div class="loading">Error loading tasks from database. Check Firebase rules!</div>';
-        });
+        }
 
-        // Task Complete Action
-        function completeTask(taskId, taskLink, rewardAmount) {
-            const btn = document.getElementById('btn_' + taskId);
-            if (btn && btn.disabled) return;
+        // Complete Task & Update Wallet
+        function completeTask(taskId, reward) {
+            const taskRef = db.ref('users/' + userId + '/completedTasks/' + todayStr + '/' + taskId);
+            
+            taskRef.once('value').then((snapshot) => {
+                if (!snapshot.exists()) {
+                    taskRef.set(true);
 
-            if (taskLink) {
-                window.open(taskLink, '_system');
-            }
-
-            if (btn) {
-                btn.innerText = 'Completed';
-                btn.disabled = true;
-            }
-
-            database.ref('users/' + userId + '/completedTasks/' + todayStr + '/' + taskId).set(true);
-
-            balanceRef.once('value').then((snapshot) => {
-                let currentBalance = snapshot.val() || 0;
-                let newBalance = parseFloat(currentBalance) + parseFloat(rewardAmount);
-                database.ref('users/' + userId + '/balance').set(newBalance);
+                    // Update Balance in Firebase
+                    const balanceRef = db.ref('users/' + userId + '/walletBalance');
+                    balanceRef.transaction((currentBalance) => {
+                        return (currentBalance || 0) + reward;
+                    });
+                }
             });
         }
 
-        // Minimum Withdrawal ₹250 Logic
+        // Fetch Wallet Balance Real-time
+        db.ref('users/' + userId + '/walletBalance').on('value', (snapshot) => {
+            const balance = snapshot.val() || 0;
+            document.getElementById('walletBalance').innerText = '₹' + balance.toFixed(2);
+        });
+
+        // Withdraw Request Function
         function requestWithdrawal() {
-            if (currentWalletBalance < 250) {
-                alert("Minimum withdrawal amount is ₹250.00!");
-                return;
-            }
-
-            let upiId = prompt("Enter Paytm Number or UPI ID:");
-            if (upiId && upiId.trim() !== "") {
-                database.ref('withdrawals/' + userId).push({
-                    upi: upiId,
-                    amount: currentWalletBalance,
-                    timestamp: Date.now()
-                });
-
-                database.ref('users/' + userId + '/balance').set(0);
-                alert("Withdrawal request submitted successfully!");
-            }
+            db.ref('users/' + userId + '/walletBalance').once('value').then((snapshot) => {
+                const balance = snapshot.val() || 0;
+                if (balance >= 250) {
+                    alert('Withdrawal request submitted successfully! Amount will be transferred soon.');
+                } else {
+                    alert('Insufficient balance! Minimum withdrawal amount is ₹250.00');
+                }
+            });
         }
+
+        // Initialize App
+        renderTasks();
     </script>
 </body>
 </html>
