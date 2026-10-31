@@ -146,8 +146,8 @@
             { id: 'phonepe', name: 'PhonePe', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=com.phonepe.app' },
             { id: 'paytm', name: 'Paytm', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=net.one97.paytm' },
             { id: 'gpay', name: 'Google Pay', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user' },
-            { id: 'zomato', name: 'Zomato', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=com.application.zomato' },
-            { id: 'swiggy', name: 'Swiggy', desc: 'Install & Open', reward: 5.00, link: 'https://play.google.com/store/apps/details?id=in.swiggy.android' }
+            { id: 'zomato', name: 'Zomato', desc: 'Install & Open', reward: 5.00, link: 'https://application.zomato' },
+            { id: 'swiggy', name: 'Swiggy', desc: 'Install & Open', reward: 5.00, link: 'https://in.swiggy.android' }
         ];
 
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -170,22 +170,27 @@
                 `;
                 taskListContainer.appendChild(taskCard);
 
-                // Safe Event Listener with 15s Timer & Redirection
+                // WebView Friendly Click Listener with 15s Timer
                 document.getElementById('btn_' + task.id).addEventListener('click', function() {
                     const btn = document.getElementById('btn_' + task.id);
                     if (btn.innerText === 'Completed' || btn.disabled) return;
 
-                    // 1. Open External Task Link
-                    window.open(task.link, '_blank');
+                    // 1. Programmatic Anchor Click for Android WebView Compatibility
+                    const anchor = document.createElement('a');
+                    anchor.href = task.link;
+                    anchor.target = '_blank';
+                    document.body.appendChild(anchor);
+                    anchor.click();
+                    document.body.removeChild(anchor);
 
                     // 2. Set Button to Verifying State
                     btn.innerText = 'Verifying...';
                     btn.disabled = true;
 
-                    // 3. Wait 15 seconds to simulate task verification, then complete
+                    // 3. Wait 15 seconds to complete task and update wallet
                     setTimeout(function() {
                         completeTask(task.id, task.reward);
-                    }, 15000); // 15 seconds delay
+                    }, 15000);
                 });
 
                 // Listen status specifically for today's date
