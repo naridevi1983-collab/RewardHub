@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reward Hub</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: #f0f2f5;
+            color: #333;
+            padding: 15px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .wallet-box h3 {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .wallet-box h2 {
+            font-size: 24px;
+            margin-top: 5px;
+        }
+        .withdraw-btn {
+            background: #ff5e62;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .section-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .task-card {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .task-info h4 {
+            font-size: 16px;
+            color: #222;
+        }
+        .task-info p {
+            font-size: 13px;
+            color: #666;
+            margin-top: 2px;
+        }
+        .task-reward {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00b894;
+            margin-top: 4px;
+        }
+        .action-btn {
+            background: #0984e3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .action-btn:disabled {
+            background: #b2bec3;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-weight: bold;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="app-title">
+            <h2>⚡ Reward Hub</h2>
+            <p style="font-size: 12px; margin-top: 3px;">Min. Withdrawal: ₹250.00</p>
+        </div>
+        <div class="wallet-box" style="text-align: right;">
+            <h3>Wallet Balance</h3>
+            <h2 id="walletBalance">₹0.00</h2>
+            <button class="withdraw-btn" onclick="requestWithdrawal()">Withdraw</button>
+        </div>
+    </div>
+
+    <div class="section-title">Today's Automated Tasks</div>
+
+    <div id="taskList">
+        <div class="loading">Loading today's fresh tasks...</div>
+    </div>
+
+    <script>
+        // Your Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBDVSalGAeUbSzoVvAILMeTuxwC3eFVRPg",
+            authDomain: "rewardhub-f9889.firebaseapp.com",
+            databaseURL: "https://rewardhub-f9889-default-rtdb.firebaseio.com",
+            projectId: "rewardhub-f9889",
+            storageBucket: "rewardhub-f9889.firebasestorage.app",
+            messagingSenderId: "866755432543",
+            appId: "1:866755432543:web:5d10856a782badb03fcbea",
+            measurementId: "G-Q9CLK7H3QE"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const database = firebase.database();
+
+        let userId = localStorage.getItem('rewardHub_userId');
+        if (!userId) {
+            userId = 'user_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('rewardHub_userId', userId);
+        }
+
+        let currentWalletBalance = 0;
+        const balanceRef = database.ref('users/' + userId + '/balance');
+        balanceRef.on('value', (snapshot) => {
+            currentWalletBalance = snapshot.val() || 0.00;
+            document.getElementById('walletBalance').innerText = '₹' + parseFloat(currentWalletBalance).toFixed(2);
+        });
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+
+        // Fetch Tasks from Firebase 'tasks' node
+        database.ref('tasks').once('value').then((snapshot) => {
+            const allTasks = snapshot.val();
+            const taskListContainer = document.getElementById('taskList');
+            taskListContainer.innerHTML = '';
+
+            if (!allTasks || allTasks.length === 0) {
+                taskListContainer.innerHTML = '<div class="loading">No tasks found in Firebase Database! Please add tasks inside the "tasks" node.</div>';
+                return;
+            }
+
+            // Daily Rotation Logic
+            const dayOfYear = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+            const tasksPerDay = 5;
+            const startIndex = (dayOfYear * tasksPerDay) % allTasks.length;
+
+            let todayTasks = [];
+            for (let i = 0; i < tasksPerDay; i++) {
+                let taskIndex = (startIndex + i) % allTasks.length;
+                if (allTasks[taskIndex]) {
+                    todayTasks.push(allTasks[taskIndex]);
+                }
+            }
+
+            // Dynamic Render
+            todayTasks.forEach(task => {
+                const taskReward = 5; // Fixed ₹5 reward per task
+                
+                const taskCard = document.createElement('div');
+                taskCard.className = 'task-card';
+                taskCard.innerHTML = `
+                    <div class="task-info">
+                        <h4>${task.name}</h4>
+                        <p>${task.desc}</p>
+                        <div class="task-reward">Earn ₹${taskReward}.00</div>
+                    </div>
+                    <button id="btn_${task.id}" class="action-btn">Start</button>
+                `;
+                taskListContainer.appendChild(taskCard);
+
+                // Safe Event Listener for APK compatibility
+                document.getElementById('btn_' + task.id).addEventListener('click', function() {
+                    completeTask(task.id, task.link, taskReward);
+                });
+
+                // Listen status specifically for today's date
+                database.ref('users/' + userId + '/completedTasks/' + todayStr + '/' + task.id).on('value', (snap) => {
+                    const btn = document.getElementById('btn_' + task.id);
+                    if (snap.val() === true && btn) {
+                        btn.innerText = 'Completed';
+                        btn.disabled = true;
+                    }
+                });
+            });
+        }).catch(err => {
+            document.getElementById('taskList').innerHTML = '<div class="loading">Error loading tasks from database. Check Firebase rules!</div>';
+        });
+
+        // Task Complete Action
+        function completeTask(taskId, taskLink, rewardAmount) {
+            const btn = document.getElementById('btn_' + taskId);
+            if (btn && btn.disabled) return;
+
+            if (taskLink) {
+                window.open(taskLink, '_system');
+            }
+
+            if (btn) {
+                btn.innerText = 'Completed';
+                btn.disabled = true;
+            }
+
+            database.ref('users/' + userId + '/completedTasks/' + todayStr + '/' + taskId).set(true);
+
+            balanceRef.once('value').then((snapshot) => {
+                let currentBalance = snapshot.val() || 0;
+                let newBalance = parseFloat(currentBalance) + parseFloat(rewardAmount);
+                database.ref('users/' + userId + '/balance').set(newBalance);
+            });
+        }
+
+        // Minimum Withdrawal ₹250 Logic
+        function requestWithdrawal() {
+            if (currentWalletBalance < 250) {
+                alert("Minimum withdrawal amount is ₹250.00!");
+                return;
+            }
+
+            let upiId = prompt("Enter Paytm Number or UPI ID:");
+            if (upiId && upiId.trim() !== "") {
+                database.ref('withdrawals/' + userId).push({
+                    upi: upiId,
+                    amount: currentWalletBalance,
+                    timestamp: Date.now()
+                });
+
+                database.ref('users/' + userId + '/balance').set(0);
+                alert("Withdrawal request submitted successfully!");
+            }
+        }
+    </script>
+</body>
+</html>
